@@ -1,0 +1,257 @@
+<html><head><base href="https://swiftsmp.net/">
+<title>SwiftLive - Android Player Count</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    body {
+        font-family: 'Roboto', Arial, sans-serif;
+        background-color: #2c0a2c;
+        color: #ffffff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }
+    .container {
+        background-color: #3c1f3c;
+        border: 2px solid #8a2be2;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
+        position: relative;
+        width: 90%;
+        max-width: 400px;
+    }
+    h1 {
+        color: #e066ff;
+        text-shadow: 2px 2px #000000;
+        font-size: 24px;
+    }
+    #result, #tpsResult {
+        margin-top: 20px;
+        font-size: 20px;
+    }
+    .players, .tps {
+        color: #d8bfd8;
+        font-weight: bold;
+        display: inline-block;
+    }
+    .server-status {
+        font-size: 16px;
+        margin-top: 10px;
+    }
+    .online {
+        color: #9932cc;
+    }
+    .offline {
+        color: #ff69b4;
+    }
+    #playerList {
+        margin-top: 20px;
+        text-align: left;
+        max-height: 150px;
+        overflow-y: auto;
+        padding: 10px;
+        background-color: rgba(60, 31, 60, 0.5);
+        border-radius: 5px;
+    }
+    .slot-machine {
+        overflow: hidden;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    .slot-machine span {
+        display: inline-block;
+        animation: spin 0.5s ease-in-out;
+    }
+    @keyframes spin {
+        0% {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    .server-ip {
+        position: absolute;
+        bottom: 10px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 16px;
+        color: #b19cd9;
+        text-shadow: 1px 1px #000000;
+    }
+    #unsupportedMessage {
+        display: none;
+        color: #ff69b4;
+        font-size: 18px;
+        text-align: center;
+        padding: 20px;
+    }
+</style>
+</head>
+<body>
+<div id="unsupportedMessage">
+    Sorry, SwiftLive is currently only available for Android devices.
+</div>
+<div id="content" class="container">
+    <h1>SwiftLive</h1>
+    <div id="result">Loading...</div>
+    <div id="tpsResult">TPS: Loading...</div>
+    <div id="serverStatus" class="server-status"></div>
+    <div id="playerList"></div>
+    <div class="server-ip">swiftsmp.net</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script>
+const SERVER_IP = 'swiftsmp.net';
+let isOnline = false;
+let currentPlayers = [];
+let currentPlayerCount = 0;
+let currentTPS = 0;
+
+function isAndroid() {
+    return /Android/i.test(navigator.userAgent);
+}
+
+function showContent() {
+    if (isAndroid()) {
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('unsupportedMessage').style.display = 'none';
+        initializeApp();
+    } else {
+        document.getElementById('content').style.display = 'none';
+        document.getElementById('unsupportedMessage').style.display = 'block';
+    }
+}
+
+function initializeApp() {
+    updateServerInfo();
+}
+
+function updateServerInfo() {
+    $.ajax({
+        url: `https://api.mcsrvstat.us/2/${SERVER_IP}`,
+        type: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            const resultDiv = document.getElementById('result');
+            const tpsResultDiv = document.getElementById('tpsResult');
+            const statusDiv = document.getElementById('serverStatus');
+            const playerListDiv = document.getElementById('playerList');
+
+            if (data.online) {
+                const playerCount = data.players.online;
+                const maxPlayers = data.players.max;
+                updatePlayerCountDisplay(playerCount, maxPlayers);
+                updateTPS(data);
+                statusDiv.innerHTML = `<span class="online">Server is online</span>`;
+                isOnline = true;
+
+                // Update player list
+                const newPlayers = data.players.list || [];
+                updatePlayerList(newPlayers);
+
+                // Display player list
+                if (newPlayers.length > 0) {
+                    playerListDiv.innerHTML = "<h3>Online Players:</h3>" + newPlayers.join("<br>");
+                } else {
+                    playerListDiv.innerHTML = "";
+                }
+            } else {
+                resultDiv.innerHTML = "No player data available";
+                tpsResultDiv.innerHTML = "TPS: N/A";
+                statusDiv.innerHTML = `<span class="offline">Server is offline</span>`;
+                playerListDiv.innerHTML = "";
+                isOnline = false;
+            }
+        },
+        error: function() {
+            const resultDiv = document.getElementById('result');
+            const tpsResultDiv = document.getElementById('tpsResult');
+            const statusDiv = document.getElementById('serverStatus');
+            const playerListDiv = document.getElementById('playerList');
+            resultDiv.innerHTML = "Error fetching server info";
+            tpsResultDiv.innerHTML = "TPS: N/A";
+            statusDiv.innerHTML = `<span class="offline">Unable to connect to server</span>`;
+            playerListDiv.innerHTML = "";
+            isOnline = false;
+        }
+    });
+}
+
+function updatePlayerCountDisplay(playerCount, maxPlayers) {
+    const resultDiv = document.getElementById('result');
+    const oldCount = currentPlayerCount;
+    currentPlayerCount = playerCount;
+
+    if (oldCount !== playerCount) {
+        resultDiv.innerHTML = `Players: <div class="players"><div class="slot-machine"><span>${playerCount}</span></div>/${maxPlayers}</div>`;
+        const slotMachine = resultDiv.querySelector('.slot-machine span');
+        slotMachine.style.animation = 'none';
+        slotMachine.offsetHeight; // Trigger reflow
+        slotMachine.style.animation = null;
+    } else {
+        resultDiv.innerHTML = `Players: <span class="players">${playerCount}/${maxPlayers}</span>`;
+    }
+}
+
+function updateTPS(data) {
+    const tpsResultDiv = document.getElementById('tpsResult');
+    let tps = "N/A";
+
+    // Check if TPS information is available in the API response
+    if (data.debug && data.debug.tps) {
+        tps = data.debug.tps.toFixed(2);
+    }
+
+    if (tps !== currentTPS) {
+        tpsResultDiv.innerHTML = `TPS: <div class="tps"><div class="slot-machine"><span>${tps}</span></div></div>`;
+        const slotMachine = tpsResultDiv.querySelector('.slot-machine span');
+        slotMachine.style.animation = 'none';
+        slotMachine.offsetHeight; // Trigger reflow
+        slotMachine.style.animation = null;
+    } else {
+        tpsResultDiv.innerHTML = `TPS: <span class="tps">${tps}</span>`;
+    }
+
+    currentTPS = tps;
+}
+
+function updatePlayerList(newPlayers) {
+    const joinedPlayers = newPlayers.filter(player => !currentPlayers.includes(player));
+    const leftPlayers = currentPlayers.filter(player => !newPlayers.includes(player));
+
+    if (joinedPlayers.length > 0) {
+        console.log("Players joined:", joinedPlayers);
+        // You can add custom actions here when players join
+    }
+
+    if (leftPlayers.length > 0) {
+        console.log("Players left:", leftPlayers);
+        // You can add custom actions here when players leave
+    }
+
+    currentPlayers = newPlayers;
+}
+
+function pollServer() {
+    updateServerInfo();
+    setTimeout(pollServer, isOnline ? 5000 : 30000);  // Poll every 5 seconds if online, 30 seconds if offline
+}
+
+// Check if the device is Android and show appropriate content
+showContent();
+
+// Start polling only if it's an Android device
+if (isAndroid()) {
+    pollServer();
+}
+</script>
+</body>
+</html>
